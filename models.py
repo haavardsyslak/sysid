@@ -1,42 +1,116 @@
-from typing import List
 import numpy as np
-from numpy import sin, cos, tan
+from numpy import sin, cos
 import scipy
+
+import utils
 
 
 class BlueRov2:
+    def __init__(self):
+        m = 10
+        self.B = 100.06
+        self.W = 98.1
+        self.rg = np.array([0, 0, 0])  # center of gravity
+        self.rb = np.array([0, 0, 0.02])  # center of buoyancy
+        self.Imat = np.diag([0.16, 0.16, 0.16])
+
+        self.Xdu = -5.5
+        self.Ydv = -12.7
+        self.Zdw = -14.57
+        self.Kdp = -0.12
+        self.Mdq = -0.12
+        self.Ndr = -0.12
+
+        self.Xu = -4.03
+        self.Yv = -6.22
+        self.Zw = -5.18
+        self.Kp = -0.07
+        self.Mq = -0.07
+        self.Nr = -0.07
+
+        self.Xabs_u = -18.18
+        self.Yabs_v = -21.66
+        self.Zabs_w = -36.99
+        self.Kabs_p = -1.55
+        self.Mabs_q = -1.55
+        self.Nabs_r = -1.55
+
+        MA = -np.diag([self.Xdu, self.Ydv, self.Zdw, self.Kdp, self.Mdq, self.Ndr])
+        MRB = np.block([
+            [m * np.eye(3), -m * utils.Smtrx(self.rg)],
+            [m * utils.Smtrx(self.rb), self.Imat]
+        ])
+
+        self.M = MA + MRB
+        self.Minv = np.linalg.inv(self.M)
+
+        self.D = -np.diag([self.Xu, self.Yv, self.Zw, self.Kp, self.Mq, self.Nr])
+
+        self.Thurst_alloc = np.array([[0.7071, 0.7071, -0.7071, -0.7071, 0, 0],
+                                      [-0.7071, 0.7071, -0.7071, 0.7071, 0, 0],
+                                      [0, 0, 0, 0, -1, -1],
+                                      [0, 0, 0, 0, 0.115, -0.115],
+                                      [0, 0, 0, 0, 0, 0],
+                                      [-0.1773, 0.1773, -0.1773, 0.1773, 0, 0]])
+
+    def solve(self, v, eta, u, timestep):
+        C = utils.m2c(self.M, v)
+        D = self.D - np.diag([self.Xabs_u * abs(v[0]),
+                              self.Yabs_v * abs(v[1]),
+                              self.Zabs_w * abs(v[2]),
+                              self.Kabs_p * abs(v[3]),
+                              self.Mabs_q * abs(v[4]),
+                              self.Nabs_r * abs(v[5])])
+        g = utils.gvect(self.W, self.B, eta[4], eta[3], self.rg, self.rb)
+        # u = self.Thurst_alloc @ u
+
+        dv = np.matmul(self.Minv, u - C @ v - D @ v - g)
+
+        return v + dv * timestep
+
+
+class BlueRov2Heavy:
 
     def __init__(self):
-        self.input = lambda x: np.zeros(6)
         self.m = 13.5
         self.rho = 1000
+        self.W = self.m * 9.81
+        # self.W  # self.m * self.rho * self.displaced_volume
+        self.B = self.W
+
         self.Ix = 0.26
         self.Iy = 0.23
         self.Iz = 0.37
+        self.Imat = np.diag([self.Ix, self.Iy, self.Iz])
 
-        self.Xdu = 6.36
-        self.Ydv = 7.12
-        self.Zdw = 18.68
-        self.Kdp = 0.189
-        self.Mdq = 0.135
-        self.Ndr = 0.222
+        self.Xdu = -6.36
+        self.Ydv = -7.12
+        self.Zdw = -18.68
+        self.Kdp = -0.189
+        self.Mdq = -0.135
+        self.Ndr = -0.222
 
-        self.Xu = 13.7
-        self.Xabs_u = 141.0
-        self.Yv = 0
-        self.Yabs_v = 217.0
-        self.Zw = 33.0
-        self.Zabs_w = 190
-        self.Kp = 0
-        self.Kabs_p = 1.19
-        self.Mq = 0.8
-        self.Mabs_q = 0.4
+        self.Xu = -13.7
+        self.Xabs_u = -141.0
+        self.Yv = 0  # self.Yv = -0.0
+        self.Yabs_v = -217.0
+        self.Zw = -33.0
+        self.Zabs_w = -190.0
+        self.Kp = -0.9  # self.Kp = -0.0
+        self.Kabs_p = -1.19
+        self.Mq = -0.8
+        self.Mabs_q = -0.47
         self.Nr = 0
-        self.Nabs_r = 1.5
+        self.Nabs_r = -1.5
+
+        self.r_cb = np.array([0, 0, -0.01], float)
+        self.r_cg = np.array([0.0, 0.0, 0.0], float)
 
         self.displaced_volume = 0.0134
 
-        self.MRB = np.array(
+        MRB = np.block([[np.eye(3) * self.m, np.zeros((3, 3))],
+                        [np.zeros((3, 3)), self.Imat]])
+        MRB = np.array(
             [[self.m, 0, 0, 0, 0, 0],
              [0, self.m, 0, 0, 0, 0],
              [0, 0, self.m, 0, 0, 0],
@@ -45,163 +119,73 @@ class BlueRov2:
              [0, 0, 0, 0, 0, self.Iz]]
         )
 
-        self.MA = -np.diag([6.36, 7.12, 18.68, 0.189, 0.135, 0.222])
+        # self.MA = -np.diag([6.36, 7.12, 18.68, 0.189, 0.135, 0.222])
+        MA = -np.diag([self.Xdu, self.Ydv, self.Zdw, self.Kdp, self.Mdq, self.Ndr])
+        self.M = MRB + MA
+        self.Minv = np.linalg.inv(self.M)
 
-        self.M = self.MA + self.MRB
-        self.i = 0
+        self.D = -np.diag([self.Xu, self.Yv, self.Zw, self.Kp, self.Mq, self.Nr])
 
-    def system(self, x, t, u):
-        print(t)
-        v = x[:6]
-        eta = x[6:]
+    def solve(self, v, eta, u, timestep):
+        # Currently u is set to be the foces for each DOF. For future this should be an array of
+        # thruster voltages, then trasnformed to forces in body frame.
 
-        C = self.get_C(v)
-        D = self.get_D(v)
-        g = self.get_g(v)
-        J = self.get_J(eta)
-        tau = u[self.i]
-        d_v = np.linalg.inv(self.M) @ (-C @ v - D @ v - g + tau)
-        d_eta = J @ v
+        g = utils.gvect(self.W, self.B, eta[4], eta[3], self.r_cg, self.r_cb)
+        C = utils.m2c(self.M, v)
+        D = self.D - np.diag([self.Xabs_u * abs(v[0]),
+                              self.Yabs_v * abs(v[1]),
+                              self.Zabs_w * abs(v[2]),
+                              self.Kabs_p * abs(v[3]),
+                              self.Mabs_q * abs(v[4]),
+                              self.Nabs_r * abs(v[5])])
 
-        return np.concatenate([d_v, d_eta])
+        Minv = np.linalg.inv(self.M)
+        D = np.matmul(D, v)
+        C = np.matmul(C, v)
+        # u = self.get_thrust_vec(u)
+        dv = np.matmul(Minv, u - D - C - g)
 
-    def solve(self, x0, t, u):
-        self.i = 0
-        x = scipy.integrate.odeint(self.system, x0, t, args=tuple([u]))
-        v = x[:, :6]
-        eta = x[:, 6:]
+        v = v + (timestep * dv)
 
-        return v, eta
+        return v
 
-    def get_J(self, vec):
-        phi, theta, psi = vec[3:]
-        J = np.zeros((6, 6))
-        J[0, 0] = cos(psi) * cos(theta)
-        J[0, 1] = -sin(psi) * cos(phi) + cos(psi) * sin(theta) * sin(psi)
-        J[0, 2] = sin(psi) * sin(phi) + cos(psi) * cos(theta) * sin(theta)
+        def get_thrust_vec(self, V):
+            f = ThrusterModel.get_thrust
+            F = np.array(
+                [f(V[0]), f(V[1]), f(V[2]), f(V[3]), f(V[4]), f(V[5]), f(V[6]), f(V[7])]
+            )
 
-        J[1, 0] = sin(psi) * cos(theta)
-        J[1, 1] = cos(psi) * cos(phi) + sin(psi) * sin(theta) * sin(psi)
-        J[1, 2] = -cos(psi) * sin(phi) + sin(theta) * sin(psi) * cos(theta)
+            def J(x):
+                return np.array([[cos(x), -sin(x), 0], [sin(x), cos(x), 0], [0, 0, 1]])
 
-        J[2, 0] = -sin(theta)
-        J[2, 1] = cos(theta) * sin(psi)
-        J[2, 2] = cos(theta) * cos(psi)
+            T = np.zeros((6, 8), float)
 
-        J[3, 3] = 1
-        J[3, 4] = sin(phi) * tan(theta)
-        J[3, 5] = cos(phi) * tan(theta)
+            alpha = [0, 5.05, 1.91, np.pi]
+            beta = [0, np.pi / 2, (3 * np.pi) / 4, np.pi]
+            gamma = [0, 4.15, 1.01, np.pi]
 
-        J[4, 3] = 0
-        J[4, 4] = cos(phi)
-        J[4, 5] = -sin(phi)
+            v1 = np.array([0.156, 0.111, 0.085])
+            v2 = np.array([1 / np.sqrt(2), -1 / np.sqrt(2), 0])
+            v3 = np.array([0.120, 0.218, 0])
 
-        J[5, 3] = 0
-        J[5, 4] = sin(phi) / cos(theta)
-        J[5, 5] = cos(phi) / cos(theta)
+            for i, (a, b) in enumerate(zip(alpha, beta)):
+                e = J(a) @ v2
+                r = J(a) @ v1
 
-        return J
+                T[:3, i] = e
+                T[3:, i] = np.cross(e, r)
 
-    def get_C(self, vec):
-        u, v, w, p, q, r = vec
+            e = np.array([0, 0, -1])
+            for i, g in enumerate(gamma):
+                r = J(g) @ v3
+                T[:3, i + 4] = e
+                T[3:, i + 4] = np.cross(e, r)
 
-        CRB = np.array(
-            [
-                [0, 0, 0, 0, self.m * w, -self.m * v],
-                [0, 0, 0, -self.m * w, 0, self.m * u],
-                [0, 0, 0, self.m * v, -self.m * u, 0],
-                [0, self.m * w, -self.m * v, 0, -self.Iz * r, self.Iy * q],
-                [-self.m * w, 0, self.m * u, self.Iz * r, 0, -self.Ix * p],
-                [self.m * v, -self.m * u, 0, -self.Iy * q, self.Ix * p, 0],
-            ]
-        )
+            # print(F)
+            tf = scipy.signal.TransferFunction([6136, 108700], [1, 89, 9258, 108700])
+            K = np.diag([tf, tf, tf, tf, tf, tf, tf, tf])
 
-        CA = np.array(
-            [
-                [0, 0, 0, 0, self.Zdw * w, self.Ydv * v],
-                [0, 0, 0, self.Zdw * w, 0, self.Xdu * u],
-                [0, 0, 0, -self.Ydv * v, self.Xdu * u, 0],
-                [0, -self.Zdw * w, self.Ydv * v, 0, -self.Ndr * r, self.Mdq * q],
-                [self.Zdw * w, 0, -self.Xdu * u, self.Ndr * r, 0, -self.Kdp * p],
-                [-self.Ydv * v, self.Xdu * u, 0, -self.Mdq * q, self.Kdp * p, 0],
-            ]
-        )
-
-        return CRB + CA
-
-    def get_D(self, vec):
-        u, v, w, p, q, r = vec
-        D = -np.diag([self.Xu, self.Yv, self.Zw, self.Kp, self.Mq, self.Nr])
-        Dn = -np.diag(
-            [
-                self.Xabs_u * abs(u),
-                self.Yabs_v * abs(v),
-                self.Zabs_w * abs(w),
-                self.Kabs_p * abs(p),
-                self.Mabs_q * abs(q),
-                self.Nabs_r * abs(r),
-            ]
-        )
-
-        return D + Dn
-
-    def get_g(self, eta):
-        x, y, z, phi, theta, _ = eta
-        W = self.m * 9.81
-        B = self.rho * 9.81 * self.displaced_volume
-
-        return np.array(
-            [
-                (W - B) * sin(theta),
-                -(W - B) * cos(theta) * sin(phi),
-                -(W - B) * cos(theta) * cos(phi),
-                y * B * cos(theta) * cos(phi) - z * B * cos(theta) * sin(phi),
-                -z * B * sin(theta) - x * B * cos(theta) * cos(phi),
-                x * B * cos(theta) * sin(phi) + y * B * sin(theta),
-            ]
-        )
-
-    def get_thrust_vec(self, V):
-        f = ThrusterModel.get_thrust
-        F = np.array(
-            [f(V[0]), f(V[1]), f(V[2]), f(V[3]), f(V[4]), f(V[5]), f(V[6]), f(V[7])]
-        )
-
-        def J(x):
-            return np.array([[cos(x), -sin(x), 0], [sin(x), cos(x), 0], [0, 0, 1]])
-
-        T = np.zeros((6, 8))
-
-        alpha = [0, 5.05, 1.91, np.pi]
-        beta = [0, np.pi / 2, (3 * np.pi) / 4, np.pi]
-        gamma = [0, 4.15, 1.01, np.pi]
-
-        v1 = np.array([0.156, 0.111, 0.085])
-        v2 = np.array([1 / np.sqrt(2), -1 / np.sqrt(2), 0])
-        v3 = np.array([0.120, 0.218, 0])
-
-        for i, (a, b) in enumerate(zip(alpha, beta)):
-            e = J(a) @ v2
-            r = J(a) @ v1
-            # The shape of 3 is (3,), and e should become the first 3 rows of the column i in the
-            # T matrix. How ??
-
-            T[:3, i] = e
-            T[3:, i] = np.cross(e, r)
-            print(i)
-
-        e = np.array([0, 0, -1])
-        for i, g in enumerate(gamma):
-            r = J(g) @ v3
-            T[:3, i + 4] = e
-            T[3:, i + 4] = np.cross(e, r)
-
-        print(T)
-        print(T.T)
-        tf = scipy.signal.TransferFunction([6136, 108700], [1, 89, 9258, 108700])
-        K = np.diag([tf, tf, tf, tf, tf, tf, tf, tf])
-
-        # return T.T @ K #@ F
+            return T @ F
 
 
 class ThrusterModel:
