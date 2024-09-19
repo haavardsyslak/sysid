@@ -71,9 +71,9 @@ def get_input_range(sim_time):
         [(0, min(10, sim_time)), (0, 0)],
         [(0, min(10, sim_time)), (0, 0)],
         [(0, min(10, sim_time)), (0, 0)],
-        [(2, min(10, sim_time)), (-1, 1)],
-        [(2, min(10, sim_time)), (-1, 1)],
-        [(2, min(10, sim_time)), (-1, 1)],
+        [(0, min(1, sim_time)), (-1, 1)],
+        [(0, min(1, sim_time)), (-1, 1)],
+        [(0, min(1, sim_time)), (-1, 1)],
     ]
 
 
