@@ -1,76 +1,27 @@
 import numpy as np
-from numpy import sin, cos
+from numpy import sin, cos, tan
 import scipy
+
+from abc import ABC, abstractmethod
 
 import utils
 
 
-class BlueRov2:
-    def __init__(self):
-        m = 10
-        self.B = 100.06
-        self.W = 98.1
-        self.rg = np.array([0, 0, 0])  # center of gravity
-        self.rb = np.array([0, 0, 0.02])  # center of buoyancy
-        self.Imat = np.diag([0.16, 0.16, 0.16])
+class Model(ABC):
+    @abstractmethod
+    def f(self, x, u):
+        pass
 
-        self.Xdu = -5.5
-        self.Ydv = -12.7
-        self.Zdw = -14.57
-        self.Kdp = -0.12
-        self.Mdq = -0.12
-        self.Ndr = -0.12
+    @abstractmethod
+    def F(self, x, u):
+        pass
 
-        self.Xu = -4.03
-        self.Yv = -6.22
-        self.Zw = -5.18
-        self.Kp = -0.07
-        self.Mq = -0.07
-        self.Nr = -0.07
-
-        self.Xabs_u = -18.18
-        self.Yabs_v = -21.66
-        self.Zabs_w = -36.99
-        self.Kabs_p = -1.55
-        self.Mabs_q = -1.55
-        self.Nabs_r = -1.55
-
-        MA = -np.diag([self.Xdu, self.Ydv, self.Zdw, self.Kdp, self.Mdq, self.Ndr])
-        MRB = np.block([
-            [m * np.eye(3), -m * utils.Smtrx(self.rg)],
-            [m * utils.Smtrx(self.rb), self.Imat]
-        ])
-
-        self.M = MA + MRB
-        self.Minv = np.linalg.inv(self.M)
-
-        self.D = -np.diag([self.Xu, self.Yv, self.Zw, self.Kp, self.Mq, self.Nr])
-
-        self.Thurst_alloc = np.array([[0.7071, 0.7071, -0.7071, -0.7071, 0, 0],
-                                      [-0.7071, 0.7071, -0.7071, 0.7071, 0, 0],
-                                      [0, 0, 0, 0, -1, -1],
-                                      [0, 0, 0, 0, 0.115, -0.115],
-                                      [0, 0, 0, 0, 0, 0],
-                                      [-0.1773, 0.1773, -0.1773, 0.1773, 0, 0]])
-
-    def solve(self, v, eta, u, timestep):
-        C = utils.m2c(self.M, v)
-        D = self.D - np.diag([self.Xabs_u * abs(v[0]),
-                              self.Yabs_v * abs(v[1]),
-                              self.Zabs_w * abs(v[2]),
-                              self.Kabs_p * abs(v[3]),
-                              self.Mabs_q * abs(v[4]),
-                              self.Nabs_r * abs(v[5])])
-        g = utils.gvect(self.W, self.B, eta[4], eta[3], self.rg, self.rb)
-        # u = self.Thurst_alloc @ u
-
-        dv = np.matmul(self.Minv, u - C @ v - D @ v - g)
-
-        return v + dv * timestep
+    @abstractmethod
+    def H(self, x):
+        pass
 
 
-class BlueRov2Heavy:
-
+class BlueRov2Heavy(Model):
     def __init__(self):
         self.m = 13.5
         self.rho = 1000
