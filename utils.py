@@ -21,6 +21,11 @@ def attitudeEuler(eta, nu, sampleTime):
     return eta
 
 
+def J(phi, theta, psi):
+    return np.block([[Rzyx(phi, theta, psi), np.zeros(((3, 3)))],
+                     [np.zeros((3, 3)), Tzyx(phi, theta)]])
+
+
 def Rzyx(phi, theta, psi):
     """
     R = Rzyx(phi,theta,psi) computes the Euler angle rotation matrix R in SO(3)
