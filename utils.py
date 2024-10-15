@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import scipy
 
 # Several of the functions here are copied from the Python vehicle simulator
 # Github: https://github.com/cybergalactic/PythonVehicleSimulator
@@ -21,9 +22,32 @@ def attitudeEuler(eta, nu, sampleTime):
     return eta
 
 
+def euler_to_quat(euler):
+    rot = scipy.spatial.transform.Rotation.from_euler("zyx", euler)
+    quaternion = rot.as_quat()
+    return np.hstack((quaternion[3], quaternion[:3]))
+
+
 def J(phi, theta, psi):
     return np.block([[Rzyx(phi, theta, psi), np.zeros(((3, 3)))],
                      [np.zeros((3, 3)), Tzyx(phi, theta)]])
+
+
+def Rq(q):
+    n, e1, e2, e3 = q
+
+    return np.array([[1 - 2 * (e2**2 + e3**2), 2 * (e1 * e2 - e3 * n), 2 * (e1 * e3 + e2 * n)],
+                     [2 * (e1 * e2 + e3 * n), 1 - 2 * (e1**2 + e3**2), 2 * (e2 * e3 - e1 * n)],
+                     [2 * (e1 * e3 - e2 * n), 2 * (e2 * e3 + e1 * n), 1 - 2 * (e1**2 + e2**2)]])
+
+
+def Tq(q):
+    n, e1, e2, e3 = q
+
+    return 1 / 2 * np.array([[-e1, -e2, -e3],
+                             [n, -e3, e2],
+                             [e3, n, -e1],
+                             [-e2, e1, n]])
 
 
 def Rzyx(phi, theta, psi):
@@ -68,6 +92,30 @@ def Tzyx(phi, theta):
         print("Tzyx is singular for theta = +-90 degrees.")
 
     return T
+
+
+def gvect_quat(B, W, q, rg, rb):
+    """
+    g = gvect(W,B,q,r_bg,r_bb) computes the 6x1 vector of restoring
+    forces about an arbitrarily point CO for a submerged body where q is
+    the unit quaternions representing the attitude
+    """
+
+    n, e1, e2, e3 = q
+    xg, yg, zg = rg
+    xb, yb, zb = rb
+    s1 = 2 * e1**2 + 2 * e2**2 - 1
+    s2 = 2 * e1 * e3 - 2 * e2 * n
+    s3 = 2 * e2 * e3 + 2 * e1 * n
+
+    return np.array([
+        (B - W) * s2,
+        (B - W) * s3,
+        -(B - W) * s1,
+        W * yg * s1 - B * zb * s3 - B * yb * s1 + W * zg * s3,
+        B * xg * s1 + B * zb * s2 - W * xg * s1 - W * zg * s2,
+        B * xb * s3 - B * yb * s2 - W * xg * s3 + W * yg * s2,
+    ])
 
 
 def gvect(W, B, theta, phi, r_bg, r_bb):
@@ -155,4 +203,21 @@ def Smtrx(a):
         [-a[1], a[0], 0]])
 
     return S
+
+
+def quats_to_euler(q_array):
+    euler = np.zeros((len(q_array), 3))
+    for i, q in enumerate(q_array):
+        euler[i, :] = quat_to_euler(q)
+
+    return euler
+
+
+def quat_to_euler(q):
+    n, e1, e2, e3 = q
+    phi = np.arctan2(2 * (e2 * e3 + e1 * n), 1 - 2 * (e1**2 + e2**2))
+    theta = - np.arcsin(2 * (e1 * e3 - e2 * n))
+    psi = np.arctan2(2 * (e1 * e2 + e3 * n), 1 - 2 * (e2**2 + e3**2))
+
+    return np.array([phi, theta, psi])
 
