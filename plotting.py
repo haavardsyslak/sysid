@@ -25,16 +25,18 @@ def plot_state_kf(x_bar, x, meas, t_vec):
     plt.tight_layout()
 
 
-def plot_hydro_params(x_bar, ground_truth, t_vec):
+def plot_hydro_params(x_bar, ground_truth, t_vec, labels, title=""):
     fig, axes = plt.subplots(3, 2, figsize=(10, 15), sharex=True)
     axes = axes.flatten()
 
-    labels = (r"$X_u$", r"$Y_v$", r"$Z_w$", r"$K_p$", r"$M_q$", r"$N_r$")
     for i, (ax, label) in enumerate(zip(axes, labels)):
         ax.plot(t_vec, x_bar[:, i])
         ax.axhline(ground_truth[i], linestyle="--")
         ax.set_ylabel(labels[i], rotation=0)
         ax.grid(True)
+
+    if title is not None:
+        fig.canvas.manager.set_window_title(title)
 
     plt.tight_layout()
  
