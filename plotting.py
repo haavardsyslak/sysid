@@ -9,10 +9,10 @@ def plot_state_kf(x_bar, x, meas, t_vec):
     axes = axes.flatten()
     labels = ("u", "v", "w", r"$\dot \phi$", r"$\dot \theta$",
               r"$\dot \psi$", r"$\phi$", r"$\theta$", r"$\psi$")
-    for i in range(6, 9):
-        x[:, i] = np.rad2deg(x[:, i])
-        x_bar[:, i] = np.rad2deg(x_bar[:, i])
-        meas[:, i] = np.rad2deg(meas[:, i])
+    # for i in range(6, 9):
+    #     x[:, i] = np.rad2deg(x[:, i])
+    #     x_bar[:, i] = np.rad2deg(x_bar[:, i])
+    #     meas[:, i] = np.rad2deg(meas[:, i])
 
     for i in range(9):
         axes[i].plot(t_vec, x[:, i])
