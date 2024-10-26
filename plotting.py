@@ -20,11 +20,13 @@ def plot_state(t_vec, x):
         axes[i].set_ylabel(labels[i], rotation=0)
         axes[i].grid(True)
 
+    fig.suptitle("States")
+
 
 def plot_state_est(x_bar, x, meas, t_vec):
     x_bar = x_bar.copy()
     x = x.copy()
-    fix, axes = plt.subplots(3, 3, figsize=(10, 15), sharex=True)
+    fig, axes = plt.subplots(3, 3, figsize=(10, 15), sharex=True)
     axes = axes.flatten()
     labels = ("u", "v", "w", r"$\dot \phi$", r"$\dot \theta$",
               r"$\dot \psi$", r"$\phi$", r"$\theta$", r"$\psi$")
@@ -37,6 +39,7 @@ def plot_state_est(x_bar, x, meas, t_vec):
         axes[i].grid(True)
 
     axes[-1].set_xlabel("Time [s]")
+    fig.suptitle("Ekf states, measurements and ground truth")
     plt.tight_layout()
 
 
@@ -51,9 +54,10 @@ def plot_hydro_params(x_bar, ground_truth, t_vec, labels, title=""):
         ax.grid(True)
 
     if title is not None:
-        fig.canvas.manager.set_window_title(title)
+        # fig.canvas.manager.set_window_title(title)
+        fig.suptitle(title)
 
-    plt.tight_layout()
+    # plt.tight_layout()
 
 
 def plot_input(t_vec, u):
@@ -67,5 +71,6 @@ def plot_input(t_vec, u):
         ax.grid(True)
 
     axes[-1].set_xlabel("Time")
-    plt.tight_layout()
+    fig.suptitle("Inputs")
+    # plt.tight_layout()
 
