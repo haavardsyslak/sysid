@@ -16,14 +16,12 @@ class RandomStepGenerator:
         if t > self.next_change_time:
             self.get_next_step()
 
-        if t > 100:
-            return 0
         return self.current_amplitude
 
 
 class MultiDOFStep:
     def __init__(self, ranges):
-        # ranges = [(min_on_time, max_on_time), (min_off_time, max_off_time), (min_amp, max_amp)]
+        # ranges = [(min_on_time, max_on_time), (min_amp, max_amp)]
 
         self.generators = []
 
