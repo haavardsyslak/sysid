@@ -1,9 +1,33 @@
 import numpy as np
-import utils
+from utils.fossen import gvect_quat, gvect, m2c
+import utils.attitude as attitude
 
 
 class BlueRov2Heavy:
     def __init__(self):
+        self.dtype_state = [
+            ("u", "f8"),
+            ("v", "f8"),
+            ("w", "f8"),
+            ("p", "f8"),
+            ("q", "f8"),
+            ("r", "f8"),
+            ("r", "f8"),
+            ("n", "f8"),
+            ("e1", "f8"),
+            ("e2", "f8"),
+            ("e3", "f8"),
+        ]
+
+        self.dtpye_input = [
+            ("X", "f8"),
+            ("Y", "f8"),
+            ("Z", "f8"),
+            ("K", "f8"),
+            ("M", "f8"),
+            ("N", "f8"),
+        ]
+
         self.m = 13.5
         self.rho = 1000
         self.displaced_volume = 0.0134
@@ -41,21 +65,21 @@ class BlueRov2Heavy:
 
         self._M = None
 
-    def fx_q(self, x, t, u):
+    def fx(self, x, t, u):
         """State update using quaternions"""
         v = x[:6]
         q = x[6:10]
-        g = utils.gvect_quat(self.B, self.W, q, self.rg, self.rb)
-        C = utils.m2c(self.M, v) @ v
+        g = gvect_quat(self.B, self.W, q, self.rg, self.rb)
+        C = m2c(self.M, v) @ v
         D = self.get_D(v) @ v
-        Minv = np.linalg.inv(self.M)
-        dv = Minv @ (u - g - C - D)
-        dn = utils.Tq(q) @ v[3:6]
+        # Minv = np.linalg.inv(self.M)
+        dv = np.linalg.solve(self.M, (u - g - C - D))
+        dn = attitude.Tq(q) @ v[3:6]
         # dn /= np.linalg.norm(dn)
 
         return np.hstack((dv, dn))
 
-    def fx(self, x, t, u):
+    def fx_euler(self, x, t, u):
         """State update using euler angles"""
         v = x[:6]
         phi, theta, psi = x[6:]

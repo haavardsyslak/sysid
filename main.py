@@ -3,9 +3,10 @@ import matplotlib.pyplot as plt
 import models
 import scipy
 from input_generator import MultiDOFStep
-from datetime import datetime
-import h5py
-import utils
+import utils.attitude as attitude
+from utils.data import load_data, save_data
+from dataclasses import dataclass
+import plotting
 
 
 def heave_step(t):
@@ -15,100 +16,69 @@ def heave_step(t):
     return u
 
 
-class OdeSolver:
-    def __init__(self, model, input_func, t_vec, fx=None):
-        self.model = model
-        self.get_input = input_func
-        self.t_vec = t_vec
-        self.input = np.zeros((len(t_vec), 6))
-        self.idx = 0
-        self.fx = fx if fx is None else model.fx
+@dataclass
+class SimulationResults:
+    state: np.ndarray
+    input: np.ndarray
 
-    def dx_euler(self, x, t):
+
+class OdeSolver:
+    def __init__(self, model, fx=None):
+        self.model = model
+        self.t_vec = None
+        self.input = None  # np.zeros((len(t_vec), 6))
+        self.idx = 0
+        self.fx = fx if fx is not None else model.fx
+
+    def dx_euler(self, t: float, x: np.ndarray) -> np.ndarray:
         u = self.get_input(t)
         idx = np.searchsorted(self.t_vec, t)
-        self.input[self.idx:(idx - 1), :] = u
+        self.input_array[self.idx:(idx - 1), :] = u
         self.idx = idx - 1
         return self.model.fx(x, t, u)
 
-    def dx(self, t, x):
-        u = self.get_input(t)
+    def dx(self, t: float, x: np.ndarray) -> np.ndarray:
         idx = np.searchsorted(self.t_vec, t)
-        self.input[self.idx:(idx - 1), :] = u
-        self.idx = idx - 1
-        return self.model.fx_q(x, t, u)
+        if callable(self.input):
+            u = self.input(t)
+        else:
+            u = self.input[idx - 1]
 
-    def solve(self, x0, dt=None):
+        self.input_array[self.idx:(idx - 1), :] = u
+        self.idx = idx - 1
+        return self.fx(x, t, u)
+
+    def solve(self, x0, u, t_vec, dt=None):
         if dt is None:
             dt = self.t_vec[1] - self.t_vec[0]
         ode_solver = scipy.integrate.ode(self.dx)
-        ode_solver.set_integrator("dopri5")
+        # ode_solver.set_integrator("dopri5")
         ode_solver.set_initial_value(x0)
+        self.input_array = np.zeros((len(t_vec), len(self.model.dtpye_input)))
+        self.input = u
+        self.t_vec = t_vec
 
         res = []
-        while ode_solver.successful() and ode_solver.t < self.t_vec[-1]:
+        while ode_solver.successful() and ode_solver.t < t_vec[-1]:
             ode_solver.integrate(ode_solver.t + dt)
             norm = np.linalg.norm(ode_solver.y[6:])
 
-            # ode_solver.y[6:] /= norm
+            ode_solver.y[6:] /= norm
             res.append(ode_solver.y.copy())
 
         res = np.array(res)
-        return res
+        return SimulationResults(res, self.input_array)
 
 
 def get_input_range(sim_time):
     return (
-        [(0, min(5, sim_time)), (0, 0)],
-        [(0, min(5, sim_time)), (0, 0)],
-        [(0, min(5, sim_time)), (0, 0)],
-        [(0, min(5, sim_time)), (10, 10)],
-        [(0, min(5, sim_time)), (0, 0)],
-        [(0, min(5, sim_time)), (0, 0)],
+        [(0, min(5, sim_time)), (-8, 8)],
+        [(0, min(5, sim_time)), (-8, 8)],
+        [(0, min(5, sim_time)), (-8, 8)],
+        [(2, min(5, sim_time)), (-1, 1)],
+        [(2, min(5, sim_time)), (-1, 1)],
+        [(2, min(5, sim_time)), (-1, 1)],
     )
-
-def save_data_quat(rov, x, u, t_vec, filename=""):
-    time = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
-
-    filename = f"./data/{type(rov).__name__}_{filename}_{time}.h5"
-
-    with h5py.File(filename, "w") as f:
-        f.create_dataset("x", data=x)
-        f.create_dataset("t", data=t_vec)
-        f.create_dataset("u", data=u)
-
-def save_data_euler(rov, x, u, t_vec, filename=""):
-    time = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
-
-    filename = f"./data/{type(rov).__name__}_{filename}_{time}.h5"
-
-    with h5py.File(filename, "w") as f:
-        f.create_dataset("x", data=x)
-        f.create_dataset("t", data=t_vec)
-        f.create_dataset("u", data=u)
-
-
-def main():
-    rov = models.BlueRov2Heavy()
-    sim_time = 20
-    dt = 0.05
-    t_vec = np.arange(0, sim_time, dt)
-    u_fn = heave_step
-    u_fn = MultiDOFStep(get_input_range(sim_time))
-    solver = OdeSolver(rov, u_fn.get_input_vec, t_vec)
-    x0 = np.zeros(9)
-
-    x = np.zeros((len(t_vec), 9))
-    x = scipy.integrate.odeint(solver.dx, x0, t_vec)
-
-    plot(t_vec, x)
-    plot_input(t_vec, solver.input)
-    plt.show()
-
-    inn = input("Save [y/N] ")
-    if inn.lower() == "y":
-        filename = input("filename? ")
-        save_data(rov, x, solver.input, t_vec, filename)
 
 
 def plot_input(t_vec, u):
@@ -149,34 +119,43 @@ def plot_quat(t_vec, x):
     # euler = scipy.spatial.transform.Rotation.from_quat(q).as_euler("zyx", degrees=True)
     x = np.zeros((len(t_vec), 9))
     x[:, :6] = xq[:, :6].copy()
-    euler = utils.quats_to_euler(q)
-    print(euler.shape)
+    euler = attitude.quats_to_euler(q)
     x[:, 6:] = euler
     plot(t_vec, x)
 
 
+def compute_input_vec(t_vec, fn):
+    input = np.zeros((len(t_vec), 6))
+    for i, t in enumerate(t_vec):
+        input[i, :] = fn(t)
+
+    return input
+
+
 def quat_test():
     rov = models.BlueRov2Heavy()
-    sim_time = 50
+    sim_time = 100
     dt = 0.05
     t_vec = np.arange(0, sim_time, dt)
     u_fn = heave_step
     u_fn = MultiDOFStep(get_input_range(sim_time))
     x0 = np.zeros(10)
-    x0[6:] = utils.euler_to_quat([0, 0, 0])
-    # xq = np.zeros((len(t_vec), 10))
-    solver = OdeSolver(rov, u_fn.get_input_vec, t_vec)
-    x = solver.solve(x0, dt)
+    x0[6:] = attitude.euler_to_quat([0, 0, 0])
+    u = compute_input_vec(t_vec, u_fn.get_input_vec)
+    solver = OdeSolver(rov)
+    res = solver.solve(x0, u, t_vec, dt)
+    x = res.state
+    u = res.input
 
     # plot(t_vec, x)
-    plot_quat(t_vec, x)
-    plot_input(t_vec, solver.input)
+    plotting.plot_state(t_vec, x)
+    plotting.plot_input(t_vec, u)
     plt.show()
 
     inn = input("Save [y/N] ")
     if inn.lower() == "y":
         filename = input("filename? ")
-        save_data_quat(rov, x, solver.input, t_vec, filename)
+        save_data(rov, x, solver.input, t_vec, filename)
 
 
 if __name__ == "__main__":
