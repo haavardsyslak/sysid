@@ -1,6 +1,7 @@
 import numpy as np
 from dataclasses import dataclass
 import scipy
+from tqdm import tqdm
 
 
 @dataclass
@@ -45,13 +46,16 @@ class OdeSolver:
         self.input = u
         self.t_vec = t_vec
 
+        steps = len(t_vec)
         res = []
-        while ode_solver.successful() and ode_solver.t < t_vec[-1]:
-            ode_solver.integrate(ode_solver.t + dt)
-            norm = np.linalg.norm(ode_solver.y[6:])
+        with tqdm(total=steps, desc="Generating data", unit="step", ncols=80) as progress:
+            while ode_solver.successful() and ode_solver.t < t_vec[-1]:
+                ode_solver.integrate(ode_solver.t + dt)
+                norm = np.linalg.norm(ode_solver.y[6:])
 
-            ode_solver.y[6:] /= norm
-            res.append(ode_solver.y.copy())
+                ode_solver.y[6:] /= norm
+                res.append(ode_solver.y.copy())
+                progress.update(1)
 
         res = np.array(res)
         return SimulationResults(res, self.input_array)
