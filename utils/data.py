@@ -1,10 +1,13 @@
 from datetime import datetime
 import h5py
 import numpy as np
+import os
 
 
 def save_data(rov, x, u, t_vec, filename="", path="./data", hyrdodyn_coefficients=None) -> None:
     time = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
+    if not os.path.exists(path):
+        os.makedirs(path)
 
     filename = f"./data/{type(rov).__name__}_{filename}_{time}.h5"
 

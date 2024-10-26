@@ -11,6 +11,8 @@ import scipy
 import plotting
 from tqdm import tqdm
 from utils.data import load_data
+import sys
+
 
 class AugmentedModel:
     def __init__(self, model):
@@ -150,11 +152,27 @@ def no_quadratic():
         r"$N_{\dot r}$",
     )
     plotting.plot_hydro_params(
-        x_bar[:, 16:], model.ground_truth[6:], t_vec, labels, title="two"
+        x_bar[:, 16:],
+        model.ground_truth[6:],
+        t_vec,
+        labels,
+        title="Hydrodynamic added mass",
     )
     plt.show()
 
 
 if __name__ == "__main__":
-    no_quadratic()
-    # main()
+    filename = ""
+
+    args = sys.argv[1:]
+    if args:
+        filename = args[0]
+
+    if filename:
+        run_ukf(filename)
+    else:
+        print(
+            "No file provided",
+            "Set filename in ukf.py or provide it as an arg:",
+            "python3 ukf.py <filepath>",
+        )
