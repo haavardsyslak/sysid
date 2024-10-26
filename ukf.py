@@ -73,34 +73,22 @@ class AugmentedModel:
         return self._ground_truth
 
 
-def no_quadratic():
+def run_ukf(filename):
     model = AugmentedModel(models.BlueRov2Heavy())
     dim = 10 + len(model.ground_truth)
     points = MerweScaledSigmaPoints(dim, alpha=1e-3, beta=2.0, kappa=3.0 - dim)
-    # points = JulierSigmaPoints(dim, kappa=3.-dim)
-    filename = "data/BlueRov2Heavy_20_xyz__10-12-2024_13-01-19.h5"
-    filename = "data/BlueRov2Heavy_20_xyz_t50_yawjump_10-12-2024_13-28-50.h5"
-    filename = "data/BlueRov2Heavy_50_xyz__10-12-2024_14-47-56.h5"
-    filename = "data/BlueRov2Heavy_x_const_balanced_10-12-2024_15-04-16.h5"
-    filename = "data/BlueRov2Heavy_quickstep_all_10-12-2024_15-11-03.h5"
-    # filename = "data/BlueRov2Heavy_yaw_only_10-12-2024_15-13-02.h5"
-    # filename = "data/BlueRov2Heavy_const_roll_10-12-2024_15-17-47.h5"
-    filename = "data/BlueRov2Heavy_big_all_10-15-2024_15-32-53.h5"
-    filename = "data/BlueRov2Heavy_big_all_10-15-2024_15-34-50.h5"
-    # filename = "data/BlueRov2Heavy_x_const_balanced_10-12-2024_15-04-16.h5"
-    filename = "data/BlueRov2Heavy_input_one_at_a_tine_10-26-2024_12-36-34.h5"
 
     data = load_data(filename)
     state = data["x"]
     inputs = data["u"]
     t_vec = data["t"]
     measurements = state.copy()
-    measurements[:, :3] += np.random.normal(0, 0.001, state[:, :3].shape)
-    measurements[:, 3:6] += np.random.normal(0, 0.0001, state[:, 3:6].shape)
-    measurements[:, 6:10] += np.random.normal(0, 0.000087, state[:, 6:10].shape)
+    measurements[:, :3] += np.random.normal(0, 0.005, state[:, :3].shape)
+    measurements[:, 3:6] += np.random.normal(0, 0.0005, state[:, 3:6].shape)
+    measurements[:, 6:10] += np.random.normal(0, 0.0087, state[:, 6:10].shape)
     # measurements = state + np.random.normal(0, 0.01, state.shape)
     Q = np.eye(dim) * 1e-4
-    Q[10, 10] = 1e-2  # Xu
+    Q[10, 10] = 3e-2  # Xu
     Q[11, 11] = 1e-2  # Yv
     Q[12, 12] = 1e-2  # Zw
     Q[13, 13] = 1e-5  # Kp
@@ -109,9 +97,9 @@ def no_quadratic():
     Q[16, 16] = 1e-2  # Xdu
     Q[17, 17] = 1e-2  # Ydv
     Q[18, 18] = 1e-2  # Zdw
-    Q[19, 19] = 1e-5  # Kdp
-    Q[20, 20] = 1e-5  # Mdq
-    Q[21, 21] = 1e-5  # Ndr
+    Q[19, 19] = 6e-6  # Kdp
+    Q[20, 20] = 1e-6  # Mdq
+    Q[21, 21] = 1e-6  # Ndr
 
     R = np.eye(10) * 0.0001
     P = np.eye(dim) * 1e-4
@@ -132,7 +120,10 @@ def no_quadratic():
     # x0[10:] = model.ground_truth
     ukf.x = x0
     for i, (x, u, z) in tqdm(
-        enumerate(zip(state, inputs, measurements)), total=len(t_vec), ncols=100
+        enumerate(zip(state, inputs, measurements)),
+        total=len(t_vec),
+        ncols=80,
+        desc="Running UKF",
     ):
         ukf.predict(fx_args=u)
         ukf.update(z)
@@ -141,7 +132,7 @@ def no_quadratic():
     plotting.plot_state_est(x_bar[:, :9], state, measurements, t_vec)
     labels = (r"$X_u$", r"$Y_v$", r"$Z_w$", r"$K_p$", r"$M_q$", r"$N_r$")
     plotting.plot_hydro_params(
-        x_bar[:, 10:16], model.ground_truth[:6], t_vec, labels, title="one"
+        x_bar[:, 10:16], model.ground_truth[:6], t_vec, labels, title="Linear damping"
     )
     labels = (
         r"$X_{\dot u}$",
