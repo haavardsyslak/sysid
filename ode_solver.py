@@ -30,15 +30,15 @@ class OdeSolver:
         if callable(self.input):
             u = self.input(t)
         else:
-            u = self.input[idx - 1]
+            u = self.input[idx-1]
 
-        self.input_array[self.idx:(idx - 1), :] = u
-        self.idx = idx - 1
+        self.input_array[self.idx:(idx), :] = u
+        self.idx = idx
         return self.fx(x, t, u)
 
     def solve(self, x0, u, t_vec, dt=None):
         if dt is None:
-            dt = self.t_vec[1] - self.t_vec[0]
+            dt = t_vec[1] - t_vec[0]
         ode_solver = scipy.integrate.ode(self.dx)
         # ode_solver.set_integrator("dopri5")
         ode_solver.set_initial_value(x0)
