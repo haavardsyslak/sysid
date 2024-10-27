@@ -83,12 +83,12 @@ class BlueRov2Heavy:
         """State update using euler angles"""
         v = x[:6]
         phi, theta, psi = x[6:]
-        g = utils.gvect(self.W, self.B, theta, phi, self.rg, self.rb)
-        C = utils.m2c(self.M, v) @ v
+        g = gvect(self.W, self.B, theta, phi, self.rg, self.rb)
+        C = m2c(self.M, v) @ v
         D = self.get_D(v) @ v
         Minv = np.linalg.inv(self.M)
         dv = Minv @ (u - g - C - D)
-        d_eta = utils.Tzyx(phi, theta) @ v[3:6]
+        d_eta = attitude.Tzyx(phi, theta) @ v[3:6]
 
         return np.hstack((dv, d_eta))
 
