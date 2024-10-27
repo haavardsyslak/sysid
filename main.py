@@ -57,7 +57,7 @@ def run_simulation():
     inn = input("Save [y/N] ")
     if inn.lower() == "y":
         filename = input("filename? ")
-        save_data(rov, x, solver.input, t_vec, filename)
+        save_data(rov, x, u, t_vec, filename)
 
 
 if __name__ == "__main__":
