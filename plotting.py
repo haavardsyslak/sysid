@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import utils.attitude
+from utils.kf_analysis import get_nis, get_nees
 
 
 def plot_state(t_vec, x):
@@ -26,10 +27,20 @@ def plot_state(t_vec, x):
 def plot_state_est(x_bar, x, meas, t_vec):
     x_bar = x_bar.copy()
     x = x.copy()
+    meas = meas.copy()
     fig, axes = plt.subplots(3, 3, figsize=(10, 15), sharex=True)
     axes = axes.flatten()
     labels = ("u", "v", "w", r"$\dot \phi$", r"$\dot \theta$",
               r"$\dot \psi$", r"$\phi$", r"$\theta$", r"$\psi$")
+
+    # x[:, :6] = x[:, :6].copy()
+    # x_bar[:, :6] = x_bar[:, :6].copy()
+    euler = utils.attitude.quats_to_euler(x[:, 6:10].copy())
+    euler_est = utils.attitude.quats_to_euler(x_bar[:, 6:10].copy())
+    euler_meas = utils.attitude.quats_to_euler(meas[:, 6:].copy())
+    x[:, 6:9] = euler
+    x_bar[:, 6:9] = euler_est
+    meas[:, 6:9] = euler_meas
 
     for i in range(9):
         axes[i].plot(t_vec, x[:, i])
@@ -73,4 +84,8 @@ def plot_input(t_vec, u):
     axes[-1].set_xlabel("Time")
     fig.suptitle("Inputs")
     # plt.tight_layout()
+
+def plot_nis(innovation, S, labels, title=""):
+    nis = get_nis(innovation, S)
+
 

@@ -42,26 +42,49 @@ class BlueRov2Heavy:
         self.Iz = 0.37
         self.Imat = np.diag([self.Ix, self.Iy, self.Iz])
 
-        self.Xdu = -6.36
-        self.Ydv = -7.12
-        self.Zdw = -18.68
-        self.Kdp = -0.189
-        self.Mdq = -0.135
-        self.Ndr = -0.222
+        self.hydro_param_idx = {
+            "Xdu": 0,
+            "Ydv": 1,
+            "Zdw": 2,
+            "Kdp": 3,
+            "Mdq": 4,
+            "Ndr": 5,
+            "Xu": 6,
+            "Yv": 7,
+            "Zw": 8,
+            "Kp": 9,
+            "Mq": 10,
+            "Nr": 11,
+            "Xabs_u": 12,
+            "Yabs_v": 13,
+            "Zabs_w": 14,
+            "Kabs_p": 15,
+            "Mabs_q": 16,
+            "Nabs_r": 17,
+        }
 
-        self.Xu = -13.7
-        self.Yv = -6.0  # self.Yv = -0.0
-        self.Zw = -33.0
-        self.Kp = -0.9  # -0.9  # self.Kp = -0.0
-        self.Mq = -0.8
-        self.Nr = 0
-
-        self.Xabs_u = -141.0
-        self.Yabs_v = -217.0
-        self.Zabs_w = -190.0
-        self.Kabs_p = -1.19
-        self.Mabs_q = -0.47
-        self.Nabs_r = -1.5
+        self.hydro_params = np.array(
+            [
+                -6.36,
+                -7.12,
+                -18.68,
+                -0.189,
+                -0.135,
+                -0.222,
+                -13.7,
+                -6.0,
+                -33.0,
+                -0.9,
+                -0.8,
+                0,
+                -141.0,
+                -217.0,
+                -190.0,
+                -1.19,
+                -0.47,
+                -1.5,
+            ]
+        )
 
         self._M = None
 
@@ -95,26 +118,56 @@ class BlueRov2Heavy:
     @property
     def M(self):
         MRB = np.array(
-            [[self.m, 0, 0, 0, 0, 0],
-             [0, self.m, 0, 0, 0, 0],
-             [0, 0, self.m, 0, 0, 0],
-             [0, 0, 0, self.Ix, 0, 0],
-             [0, 0, 0, 0, self.Iy, 0],
-             [0, 0, 0, 0, 0, self.Iz]]
+            [
+                [self.m, 0, 0, 0, 0, 0],
+                [0, self.m, 0, 0, 0, 0],
+                [0, 0, self.m, 0, 0, 0],
+                [0, 0, 0, self.Ix, 0, 0],
+                [0, 0, 0, 0, self.Iy, 0],
+                [0, 0, 0, 0, 0, self.Iz],
+            ]
         )
-        MA = -np.diag([self.Xdu, self.Ydv, self.Zdw, self.Kdp, self.Mdq, self.Ndr])
+        MA = -np.diag(
+            [
+                self.hydro_params[0],
+                self.hydro_params[1],
+                self.hydro_params[2],
+                self.hydro_params[3],
+                self.hydro_params[4],
+                self.hydro_params[5],
+            ]
+        )
         self._M = MRB + MA
         return self._M
 
     def get_D(self, v):
-        D = -np.diag((self.Xu, self.Yv, self.Zw, self.Kp, self.Mq, self.Nr))
-        Dn = -np.diag([self.Xabs_u * abs(v[0]),
-                       self.Yabs_v * abs(v[1]),
-                       self.Zabs_w * abs(v[2]),
-                       self.Kabs_p * abs(v[3]),
-                       self.Mabs_q * abs(v[4]),
-                       self.Nabs_r * abs(v[5])])
+        D = -np.diag(
+            (
+                self.hydro_params[6],
+                self.hydro_params[7],
+                self.hydro_params[8],
+                self.hydro_params[9],
+                self.hydro_params[10],
+                self.hydro_params[11],
+            )
+        )
+
+        Dn = -np.diag(
+            [
+                self.hydro_params[12] * abs(v[0]),
+                self.hydro_params[13] * abs(v[1]),
+                self.hydro_params[14] * abs(v[2]),
+                self.hydro_params[15] * abs(v[3]),
+                self.hydro_params[16] * abs(v[4]),
+                self.hydro_params[17] * abs(v[5]),
+            ]
+        )
 
         return D + Dn
 
-
+    def set_hdyroparam(self, params):
+        for key, value in params.items():
+            if key in self.hydro_params:
+                self.hydro_params[key] = value
+            else:
+                raise KeyError(f"{key} is not a valid hydrodynamic parameter.")

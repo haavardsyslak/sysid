@@ -5,7 +5,7 @@ from input_generator import MultiDOFStep
 import utils.attitude as attitude
 import plotting
 from ode_solver import OdeSolver
-from utils.data import save_data
+from utils.data import save_data, load_data
 
 
 def heave_step(t):
@@ -17,9 +17,9 @@ def heave_step(t):
 
 def get_input_range(sim_time):
     return (
-        [(0, min(5, sim_time)), (-8, 8)],
-        [(0, min(5, sim_time)), (-8, 8)],
-        [(0, min(5, sim_time)), (-8, 8)],
+        [(2, min(8, sim_time)), (-8, 8)],
+        [(2, min(8, sim_time)), (-8, 8)],
+        [(2, min(8, sim_time)), (-8, 8)],
         [(2, min(5, sim_time)), (-1, 1)],
         [(2, min(5, sim_time)), (-1, 1)],
         [(2, min(5, sim_time)), (-1, 1)],
@@ -34,6 +34,12 @@ def compute_input_vec(t_vec, fn):
     return input
 
 
+def get_input() -> np.ndarray:
+    file = "data/BlueRov2Heavy__10-26-2024_15-40-22.h5"
+    data = load_data(file)
+    return data["u"]
+
+
 def run_simulation():
     rov = models.BlueRov2Heavy()
     sim_time = 100
@@ -43,13 +49,13 @@ def run_simulation():
     u_fn = MultiDOFStep(get_input_range(sim_time))
     x0 = np.zeros(10)
     x0[6:] = attitude.euler_to_quat([0, 0, 0])
-    u = compute_input_vec(t_vec, u_fn.get_input_vec)
+    # u = compute_input_vec(t_vec, u_fn.get_input_vec)
+    u = get_input()
     solver = OdeSolver(rov)
     res = solver.solve(x0, u, t_vec, dt)
     x = res.state
     u = res.input
 
-    # plot(t_vec, x)
     plotting.plot_state(t_vec, x)
     plotting.plot_input(t_vec, u)
     plt.show()
@@ -62,3 +68,4 @@ def run_simulation():
 
 if __name__ == "__main__":
     run_simulation()
+    # _run()

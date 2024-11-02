@@ -16,6 +16,9 @@ class RandomStepGenerator:
         if t > self.next_change_time:
             self.get_next_step()
 
+        if t > 70 and t < 80:
+            return 0
+
         return self.current_amplitude
 
 
