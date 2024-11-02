@@ -3,6 +3,34 @@ import math
 import scipy
 
 
+def quaternion_prod(q1, q2):
+    """Multiply two unit quaterions"""
+    n1 = q1[0]
+    e1 = q1[1:]
+    n2 = q2[0]
+    e2 = q2[1:]
+    q = np.zeros_like(q1)
+    q[0] = n1 * n2 - e1.T @ e2
+    q[1:] = n1 * e2 + n2 * e1 + Smtrx(e1) @ e2
+    norm = np.linalg.norm(q)
+    if norm != 0:
+        q = q / norm
+    else:
+        print("NROM: ", norm)
+        input()
+
+    return q
+
+
+def quaternion_error(q1, q2):
+    """Returns a new quaternion representing
+    the attitude error between the two quaternion"""
+    q1_conj = np.zeros_like(q1)
+    q1_conj[0] = q1[0]
+    q1_conj[1:] = -q1[1:]
+    return quaternion_prod(q1_conj, q2)
+
+
 def attitudeEuler(eta, nu, sampleTime):
     """
     eta = attitudeEuler(eta,nu,sampleTime) computes the generalized
@@ -34,7 +62,8 @@ def Rq(q):
     n, e1, e2, e3 = q
 
     return np.array([[1 - 2 * (e2**2 + e3**2), 2 * (e1 * e2 - e3 * n), 2 * (e1 * e3 + e2 * n)],
-                     [2 * (e1 * e2 + e3 * n), 1 - 2 * (e1**2 + e3**2), 2 * (e2 * e3 - e1 * n)],
+                     [2 * (e1 * e2 + e3 * n), 1 - 2 *
+                      (e1**2 + e3**2), 2 * (e2 * e3 - e1 * n)],
                      [2 * (e1 * e3 - e2 * n), 2 * (e2 * e3 + e1 * n), 1 - 2 * (e1**2 + e2**2)]])
 
 
@@ -61,8 +90,10 @@ def Rzyx(phi, theta, psi):
     spsi = math.sin(psi)
 
     R = np.array([
-        [cpsi * cth, -spsi * cphi + cpsi * sth * sphi, spsi * sphi + cpsi * cphi * sth],
-        [spsi * cth, cpsi * cphi + sphi * sth * spsi, -cpsi * sphi + sth * spsi * cphi],
+        [cpsi * cth, -spsi * cphi + cpsi * sth *
+            sphi, spsi * sphi + cpsi * cphi * sth],
+        [spsi * cth, cpsi * cphi + sphi * sth *
+            spsi, -cpsi * sphi + sth * spsi * cphi],
         [-sth, cth * sphi, cth * cphi]])
 
     return R
@@ -120,4 +151,3 @@ def quat_to_euler(q):
     psi = np.arctan2(2 * (e1 * e2 + e3 * n), 1 - 2 * (e2**2 + e3**2))
 
     return np.array([phi, theta, psi])
-

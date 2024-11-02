@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import utils.attitude
-from utils.kf_analysis import get_nis, get_nees
 
 
 def plot_state(t_vec, x):
