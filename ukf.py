@@ -15,24 +15,16 @@ import sys
 from dataclasses import dataclass
 from utils.attitude import quaternion_error, euler_to_quat
 
-
-def residual_x(xt, x):
-    diff = np.zeros_like(x)
-    diff[:6] = xt[:6] - x[:6]
-    diff[6:10] = quaternion_error(xt[6:10], x[6:10])
-    diff[10:] = xt[10:] - x[10:]
-    return diff / np.linalg.norm(diff)
-
-
-def residual_z(zt, z):
-    print(zt.shape)
-    print(z.shape)
-    input()
-    diff = np.zeros_like(zt)
-    diff[:6] = zt[:6] - z[:6]
-    diff[6:10] = quaternion_error(z[6:10], zt[6:10])
-    diff[10:] = zt[10:] - z[10:]
-    return diff / np.linalg.norm(diff)
+def residual_x(a, b):
+    """
+    Custom residual function for the state vector to handle quaternion difference.
+    """
+    res = a - b
+    q_a = a[6:10]
+    q_b = b[6:10]
+    q_err = quaternion_error(q_a, q_b)
+    res[7:10] = q_err[1:]  # Use the vector part of the quaternion error
+    return res
 
 
 class AugmentedModel:
@@ -40,20 +32,23 @@ class AugmentedModel:
         self.model = model
         self._ground_truth = self.model.hydro_params[:13].copy()
 
-        self.H = np.block([[np.eye(9), np.zeros((9, len(self.ground_truth)))]])
+        self.H = np.block([[np.eye(10), np.zeros((10, len(self.ground_truth)))]])
 
     def fx(self, x, dt, fx_args):
         self.update_hydrodynamic_params(x)
-        # dx = self.model.fx(xq[:10], 0, fx_args)
+        dx = self.model.fx(x[:10], 0, fx_args)
         # RK4 integration steps
-        k1 = self.model.fx(x[:10], 0, fx_args)
-        k2 = self.model.fx(x[:10] + 0.5 * k1 * dt, 0, fx_args)
-        k3 = self.model.fx(x[:10] + 0.5 * k2 * dt, 0, fx_args)
-        k4 = self.model.fx(x[:10] + k3 * dt, 0, fx_args)
+        # k1 = self.model.fx(x[:10], 0, fx_args)
+        # k2 = self.model.fx(x[:10] + 0.5 * k1 * dt, 0, fx_args)
+        # k3 = self.model.fx(x[:10] + 0.5 * k2 * dt, 0, fx_args)
+        # k4 = self.model.fx(x[:10] + k3 * dt, 0, fx_args)
+        # #
+        # # # Update state using RK4 formula
+        # x[:10] = x[:10] + (k1 + 2 * k2 + 2 * k3 + k4) * (dt / 6)
 
-        # Update state using RK4 formula
-        x[:10] = x[:10] + (k1 + 2 * k2 + 2 * k3 + k4) * (dt / 6)
+        x[:10] = x[:10] + dt * dx
 
+        x[6:10] = x[6:10] / np.linalg.norm(x[6:10])
         return x
 
     def hx(self, z):
@@ -62,7 +57,7 @@ class AugmentedModel:
         return res
 
     def update_hydrodynamic_params(self, x):
-        self.model.hydro_params[:13] = x[9:]
+        self.model.hydro_params[:13] = x[10:]
 
     @property
     def ground_truth(self):
@@ -81,9 +76,22 @@ class UKFResults:
     t_vec: np.ndarray
 
 
+def normalize_quaternion_with_covariance(state, covariance):
+    quaternion = state[6:10]
+    norm_quaternion = quaternion / np.linalg.norm(quaternion)
+    state[6:10] = norm_quaternion
+
+    # Project the covariance to the tangent space
+    J = np.eye(len(state))
+    print(J[6:10, 6:10].shape)
+    J[6:10, 6:10] -= np.outer(norm_quaternion, norm_quaternion)
+    covariance = J @ covariance @ J.T
+    return state, covariance
+
+
 def run_ukf(filename):
     model = AugmentedModel(models.BlueRov2Heavy())
-    dim = 9 + len(model.ground_truth)
+    dim = 10 + len(model.ground_truth)
     points = MerweScaledSigmaPoints(dim, alpha=1e-3, beta=2.0, kappa=3.0 - dim)
 
     data = load_data(filename)
@@ -95,8 +103,7 @@ def run_ukf(filename):
     measurements[:, 3:6] += np.random.normal(0, 2.5e-3, state[:, 3:6].shape)
     measurements[:, 6:10] += np.random.normal(0, 0.00087, state[:, 6:10].shape)
     # measurements = state + np.random.normal(0, 0.01, state.shape)
-    Q = np.eye(dim) * 1e-2
-
+    Q = np.eye(dim) * 1e-5
     Q[10, 10] = 5e-1  # Xu
     Q[11, 11] = 8e-1  # Yv
     Q[12, 12] = 5e-1  # Zw
@@ -110,33 +117,33 @@ def run_ukf(filename):
     Q[20, 20] = 1e-4  # Mdq
     Q[21, 21] = 1e-4  # Ndr
 
-    R = np.eye(9)  # * 0.001
+    R = np.eye(10)  # * 0.001
     R[:3, :3] *= 0.008
     R[3:6, 3:6] *= 1e-4
     R[6:, 6:] *= 0.0008
-    P = np.eye(dim)  # * 1e-4
+    P = np.eye(dim) * 1e-4
     # P[9, 9] = 11
     # P[10, 10] = 0.0001
     dt = 0.05
 
     ukf = UnscentedKalmanFilter(
-        dim_x=dim, dim_z=9, fx=model.fx, hx=model.hx, dt=0.05, points=points
+        dim_x=dim, dim_z=10, fx=model.fx, hx=model.hx, dt=0.05, points=points
     )
     # ukf.residual_x = residual_x
-    # ukf.residual_z = residual_z
+    # ukf.residual_z = residual_x
     ukf.Q = Q
     ukf.R = R
     ukf.P = P
     x_bar = np.zeros((len(t_vec), dim))
     x0 = np.zeros(dim)
-    # x0[6:10] = euler_to_quat([0, 0, 0])
+    x0[6:10] = euler_to_quat([0, 0, 0])
     # x0[:10] = state[0, :10]
 
-    # x0[10:] = model.ground_truth.copy()
+    x0[10:] = model.ground_truth.copy()
     ukf.x = x0
     P_post = np.zeros((len(t_vec), dim, dim))
-    innovation = np.zeros((len(t_vec), 9))
-    S = np.zeros((len(t_vec), 9, 9))
+    innovation = np.zeros((len(t_vec), 10))
+    S = np.zeros((len(t_vec), 10, 10))
     for i, (x, u, z) in tqdm(
         enumerate(zip(state, inputs, measurements)),
         total=len(t_vec),
@@ -146,6 +153,7 @@ def run_ukf(filename):
         try:
             ukf.predict(fx_args=u)
             ukf.update(z)
+            # ukf.x[6:10] = ukf.x[6:10] / np.linalg.norm(ukf.x[6:10])
             x_bar[i, :] = ukf.x
             P_post[i, :] = ukf.P_post
             S[i, :] = ukf.S
@@ -182,7 +190,9 @@ def run_ukf(filename):
 
 if __name__ == "__main__":
     filename = "data/BlueRov2Heavy__10-26-2024_15-40-22.h5"
-    filename = "data/BlueRov2Heavy__10-26-2024_15-40-22.h5"
+    filename = "one_res/BlueRov2Heavy_Xdu"
+    filename = "data/BlueRov2Heavy_test _11-03-2024_17-48-18.h5"
+    filename = "data/BlueRov2Heavy_input_10-27-2024_16-54-39.h5"
     args = sys.argv[1:]
     if args:
         filename = args[0]
