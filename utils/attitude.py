@@ -62,8 +62,8 @@ def Rq(q):
     n, e1, e2, e3 = q
 
     return np.array([[1 - 2 * (e2**2 + e3**2), 2 * (e1 * e2 - e3 * n), 2 * (e1 * e3 + e2 * n)],
-                     [2 * (e1 * e2 + e3 * n), 1 - 2 *
-                      (e1**2 + e3**2), 2 * (e2 * e3 - e1 * n)],
+                     [2 * (e1 * e2 + e3 * n), 1 - 2
+                      * (e1**2 + e3**2), 2 * (e2 * e3 - e1 * n)],
                      [2 * (e1 * e3 - e2 * n), 2 * (e2 * e3 + e1 * n), 1 - 2 * (e1**2 + e2**2)]])
 
 
@@ -90,10 +90,10 @@ def Rzyx(phi, theta, psi):
     spsi = math.sin(psi)
 
     R = np.array([
-        [cpsi * cth, -spsi * cphi + cpsi * sth *
-            sphi, spsi * sphi + cpsi * cphi * sth],
-        [spsi * cth, cpsi * cphi + sphi * sth *
-            spsi, -cpsi * sphi + sth * spsi * cphi],
+        [cpsi * cth, -spsi * cphi + cpsi * sth
+            * sphi, spsi * sphi + cpsi * cphi * sth],
+        [spsi * cth, cpsi * cphi + sphi * sth
+            * spsi, -cpsi * sphi + sth * spsi * cphi],
         [-sth, cth * sphi, cth * cphi]])
 
     return R
@@ -151,3 +151,34 @@ def quat_to_euler(q):
     psi = np.arctan2(2 * (e1 * e2 + e3 * n), 1 - 2 * (e2**2 + e3**2))
 
     return np.array([phi, theta, psi])
+
+
+def vec_to_quat(v):
+    ang = np.linalg.norm(v) / 2
+    e = v / np.linalg.norm(v)
+
+    q = np.zeros(4)
+    q[0] = np.cos(ang)
+    q[1:] = e * np.sin(ang)
+
+    return q
+
+
+def mean_quat(quats):
+    quats = np.array([q / np.linalg.norm(q) for q in quats])
+
+    # Compute the covariance matrix
+    C = np.zeros((4, 4))
+    for q in quats:
+        C += np.outer(q, q)
+    C /= len(quats)
+
+    # Perform eigen decomposition
+    eigenvalues, eigenvectors = np.linalg.eigh(C)
+
+    # The eigenvector with the largest eigenvalue is the mean quaternion
+    mean_q = eigenvectors[:, np.argmax(eigenvalues)]
+
+    # Normalize the resulting quaternion to ensure it is unit
+    mean_q /= np.linalg.norm(mean_q)
+    return mean_q
