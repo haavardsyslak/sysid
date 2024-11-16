@@ -1,6 +1,8 @@
 import numpy as np
 import math
 import scipy
+from scipy.spatial.transform import Rotation
+
 
 
 def quaternion_prod(q1, q2):
@@ -161,13 +163,16 @@ def to_scipy_quat(q):
     return np.array([q[1], q[2], q[3], q[0]])
 
 def vec_to_quat(v):
-    ang = np.linalg.norm(v) / 2
-    e = v / np.linalg.norm(v)
-
-    q = np.zeros(4)
-    q[0] = np.cos(ang)
-    q[1:] = e * np.sin(ang)
-
+    # ang = np.linalg.norm(v) / 2
+    # e = v / np.linalg.norm(v)
+    #
+    # q = np.zeros(4)
+    # q[0] = np.cos(ang)
+    # q[1:] = e * np.sin(ang)
+    #
+    # return q
+    
+    q = scipy.spatial.transform.Rotation.from_rotvec(v).as_quat(scalar_first=True)
     return q
 
 
