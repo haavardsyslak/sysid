@@ -88,6 +88,24 @@ class BlueRov2Heavy:
 
         self._M = None
 
+    def fx_err_state(self, x, t, u, omega, q):
+        v = x[:6]
+        theta = x[6:9]
+        g = gvect_quat(self.B, self.W, q, self.rg, self.rb)
+        C = m2c(self.M, v) @ v
+        D = self.get_D(v) @ v
+        # Minv = np.linalg.inv(self.M)
+        dv = np.linalg.solve(self.M, (u - g - C - D))
+        #dn = attitude.Tq(q) @ v[3:6]
+        # dn = attitude.Smtrx(omega) @ theta
+        q_ = np.ones(4)
+        q_[1:] = omega * t
+        dn = attitude.Rq(q_) @ theta
+
+        dn = (np.eye(3) - attitude.Smtrx(omega) * t) @ theta
+
+        return np.hstack((dv, dn))
+        
     def fx(self, x, t, u):
         """State update using quaternions"""
         v = x[:6]
