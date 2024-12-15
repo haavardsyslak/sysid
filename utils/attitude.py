@@ -1,34 +1,41 @@
 import numpy as np
 import math
 import scipy
+from scipy.spatial.transform import Rotation
+
 
 
 def quaternion_prod(q1, q2):
-    """Multiply two unit quaterions"""
-    n1 = q1[0]
-    e1 = q1[1:]
-    n2 = q2[0]
-    e2 = q2[1:]
-    q = np.zeros_like(q1)
-    q[0] = n1 * n2 - e1.T @ e2
-    q[1:] = n1 * e2 + n2 * e1 + Smtrx(e1) @ e2
-    norm = np.linalg.norm(q)
-    if norm != 0:
-        q = q / norm
-    else:
-        print("NROM: ", norm)
-        input()
+    """
+    Computes the product of two quaternions q1 and q2.
 
-    return q
+    Parameters:
+    q1, q2 : array-like, shape (4,)
+        Input quaternions represented as [w, x, y, z], 
+        where w is the scalar part and x, y, z are the vector parts.
+
+    Returns:
+    product : ndarray, shape (4,)
+        The resulting quaternion from the multiplication q1 * q2.
+    """
+    w1, x1, y1, z1 = q1
+    w2, x2, y2, z2 = q2
+
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+
+    return np.array([w, x, y, z])
 
 
 def quaternion_error(q1, q2):
     """Returns a new quaternion representing
     the attitude error between the two quaternion"""
-    q1_conj = np.zeros_like(q1)
-    q1_conj[0] = q1[0]
-    q1_conj[1:] = -q1[1:]
-    return quaternion_prod(q1_conj, q2)
+    q2_conj = np.zeros_like(q2)
+    q2_conj[0] = q2[0]
+    q2_conj[1:] = -q2[1:]
+    return quaternion_prod(q1, q2_conj)
 
 
 def attitudeEuler(eta, nu, sampleTime):
@@ -152,15 +159,20 @@ def quat_to_euler(q):
 
     return np.array([phi, theta, psi])
 
+def to_scipy_quat(q):
+    return np.array([q[1], q[2], q[3], q[0]])
 
 def vec_to_quat(v):
-    ang = np.linalg.norm(v) / 2
-    e = v / np.linalg.norm(v)
-
-    q = np.zeros(4)
-    q[0] = np.cos(ang)
-    q[1:] = e * np.sin(ang)
-
+    # ang = np.linalg.norm(v) / 2
+    # e = v / np.linalg.norm(v)
+    #
+    # q = np.zeros(4)
+    # q[0] = np.cos(ang)
+    # q[1:] = e * np.sin(ang)
+    #
+    # return q
+    
+    q = scipy.spatial.transform.Rotation.from_rotvec(v).as_quat(scalar_first=True)
     return q
 
 

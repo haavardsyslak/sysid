@@ -1,6 +1,7 @@
 import numpy as np
 from utils.fossen import gvect_quat, gvect, m2c
 import utils.attitude as attitude
+from utils.fossen import Smtrx
 
 
 class BlueRov2Heavy:
@@ -88,24 +89,21 @@ class BlueRov2Heavy:
 
         self._M = None
 
-    def fx_err_state(self, x, t, u, omega, q):
+    def fx_err_state(self, x, t, u, x_nom):
         v = x[:6]
         theta = x[6:9]
-        g = gvect_quat(self.B, self.W, q, self.rg, self.rb)
-        C = m2c(self.M, v) @ v
-        D = self.get_D(v) @ v
+        g = gvect_quat(self.B, self.W, x_nom[6:10], self.rg, self.rb)
+        C = m2c(self.M, x_nom[:6]) @ v
+        D = self.get_D(x_nom[:6]) @ v
         # Minv = np.linalg.inv(self.M)
         dv = np.linalg.solve(self.M, (u - g - C - D))
-        #dn = attitude.Tq(q) @ v[3:6]
-        # dn = attitude.Smtrx(omega) @ theta
-        q_ = np.ones(4)
-        q_[1:] = omega * t
-        dn = attitude.Rq(q_) @ theta
+        # d_theta = -Smtrx(x[3:6]) @ theta
+        d_theta = attitude.Tq(x_nom[6:10]) @ v[3:6]
 
-        dn = (np.eye(3) - attitude.Smtrx(omega) * t) @ theta
+        # d_theta = 2 * (attitude.Tq(q) @ omega)[1:]
 
-        return np.hstack((dv, dn))
-        
+        return np.hstack((dv, d_theta))
+
     def fx(self, x, t, u):
         """State update using quaternions"""
         v = x[:6]
