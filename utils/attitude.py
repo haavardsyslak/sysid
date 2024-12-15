@@ -55,9 +55,9 @@ def attitudeEuler(eta, nu, sampleTime):
 
 
 def euler_to_quat(euler):
-    rot = scipy.spatial.transform.Rotation.from_euler("zyx", euler)
-    quaternion = rot.as_quat()
-    return np.hstack((quaternion[3], quaternion[:3]))
+    rot = scipy.spatial.transform.Rotation.from_euler("xyz", euler)
+    quaternion = rot.as_quat(scalar_first=True)
+    return quaternion
 
 
 def J(phi, theta, psi):
@@ -147,6 +147,7 @@ def quats_to_euler(q_array):
     euler = np.zeros((len(q_array), 3))
     for i, q in enumerate(q_array):
         euler[i, :] = quat_to_euler(q)
+        # euler[i, :] = Rotation.from_quat(q, scalar_first=True).as_euler("ZYX")
 
     return euler
 

@@ -15,6 +15,7 @@ import sys
 from dataclasses import dataclass
 from utils.attitude import quaternion_error, euler_to_quat
 
+
 def residual_x(a, b):
     """
     Custom residual function for the state vector to handle quaternion difference.
@@ -36,20 +37,26 @@ class AugmentedModel:
 
     def fx(self, x, dt, fx_args):
         self.update_hydrodynamic_params(x)
-        dx = self.model.fx(x[:10], 0, fx_args)
+        dx = self.model.fx_err_state(x[:10], 0, fx_args)
         # RK4 integration steps
         # k1 = self.model.fx(x[:10], 0, fx_args)
         # k2 = self.model.fx(x[:10] + 0.5 * k1 * dt, 0, fx_args)
         # k3 = self.model.fx(x[:10] + 0.5 * k2 * dt, 0, fx_args)
         # k4 = self.model.fx(x[:10] + k3 * dt, 0, fx_args)
-        # #
-        # # # Update state using RK4 formula
+        #
+        # # Update state using RK4 formula
         # x[:10] = x[:10] + (k1 + 2 * k2 + 2 * k3 + k4) * (dt / 6)
 
-        x[:10] = x[:10] + dt * dx
+        x[:6] = x[:6] + dt * dx[:6]
+        x[6:10] = (Rotation.from_quat(x[6:10], scalar_first=True) * Rotation.from_quat(
+            dx[6:10], scalar_first=True
+        )).as_quat(scalar_first=True)
 
         x[6:10] = x[6:10] / np.linalg.norm(x[6:10])
         return x
+
+    def hx_qukf(self, z):
+        return z[:6]
 
     def hx(self, z):
         res = self.H @ z
@@ -103,7 +110,7 @@ def run_ukf(filename):
     measurements[:, 3:6] += np.random.normal(0, 2.5e-3, state[:, 3:6].shape)
     measurements[:, 6:10] += np.random.normal(0, 0.00087, state[:, 6:10].shape)
     # measurements = state + np.random.normal(0, 0.01, state.shape)
-    Q = np.eye(dim) * 1e-5
+    Q = np.eye(dim) * 1e-4
     Q[10, 10] = 5e-1  # Xu
     Q[11, 11] = 8e-1  # Yv
     Q[12, 12] = 5e-1  # Zw
@@ -139,7 +146,7 @@ def run_ukf(filename):
     x0[6:10] = euler_to_quat([0, 0, 0])
     # x0[:10] = state[0, :10]
 
-    x0[10:] = model.ground_truth.copy()
+    # x0[10:] = model.ground_truth.copy()
     ukf.x = x0
     P_post = np.zeros((len(t_vec), dim, dim))
     innovation = np.zeros((len(t_vec), 10))
@@ -193,6 +200,8 @@ if __name__ == "__main__":
     filename = "one_res/BlueRov2Heavy_Xdu"
     filename = "data/BlueRov2Heavy_test _11-03-2024_17-48-18.h5"
     filename = "data/BlueRov2Heavy_input_10-27-2024_16-54-39.h5"
+    filename = "data/BlueRov2Heavy_mau_11-05-2024_11-10-46.h5"
+    # filename = "data/BlueRov2Heavy_tst_bigger_12-15-2024_13-19-28.h5"
     args = sys.argv[1:]
     if args:
         filename = args[0]
