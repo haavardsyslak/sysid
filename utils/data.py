@@ -28,3 +28,18 @@ def load_data(filepath: str):
 
     return data
 
+
+def save_data_ukf_res(res, filename="", path="./data") -> None:
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+    filename = f"{path}/{filename}__ukf_res.h5"
+
+    with h5py.File(filename, "w") as f:
+        f.create_dataset("x", data=res.x)
+        f.create_dataset("x_bar", data=res.x_bar)
+        f.create_dataset("meas", data=res.meas)
+        f.create_dataset("input", data=res.input)
+        f.create_dataset("t_vec", data=res.t_vec)
+        
+

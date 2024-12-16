@@ -89,20 +89,30 @@ class BlueRov2Heavy:
 
         self._M = None
 
-    def fx_err_state(self, x, t, u, x_nom):
+    def fx_err_state(self, x, t, u):
         v = x[:6]
-        theta = x[6:9]
-        g = gvect_quat(self.B, self.W, x_nom[6:10], self.rg, self.rb)
-        C = m2c(self.M, x_nom[:6]) @ v
-        D = self.get_D(x_nom[:6]) @ v
+        g = gvect_quat(self.B, self.W, x[6:10], self.rg, self.rb)
+        C = m2c(self.M, x[:6]) @ v
+        D = self.get_D(x[:6]) @ v
         # Minv = np.linalg.inv(self.M)
         dv = np.linalg.solve(self.M, (u - g - C - D))
         # d_theta = -Smtrx(x[3:6]) @ theta
-        d_theta = attitude.Tq(x_nom[6:10]) @ v[3:6]
+        #d_theta = attitude.Tq(x_nom[6:10]) @ v[3:6]
+        q = np.zeros(4)
+        omega = v[3:6]
+        norm = np.linalg.norm(omega)
+        if norm < 1e-6:
+            print(norm)
+            q[0] = 1.0
+            q[1:] = 0.0
+        else:
+            q[0] = np.cos(norm * (0.05 / 2))
+            q[1:] = (omega / norm) * np.sin(norm * (0.05 / 2))
+
 
         # d_theta = 2 * (attitude.Tq(q) @ omega)[1:]
 
-        return np.hstack((dv, d_theta))
+        return np.hstack((dv, q))
 
     def fx(self, x, t, u):
         """State update using quaternions"""

@@ -50,13 +50,15 @@ class SigmaPoints:
 
 def WtoX(x, W):
     n = len(x) - 1
-    res = np.zeros((2 * n + 1, n+1))
+    res = np.zeros((2 * n + 1, n + 1))
     for i, w in enumerate(W):
         res[i, :6] = w[:6] + x[:6]
         rot1 = Rotation.from_rotvec(w[6:9])
         rot2 = Rotation.from_quat(x[6:10], scalar_first=True)
         res[i, 6:10] = (rot2 * rot1).as_quat(scalar_first=True)
         res[i, 6:10] /= np.linalg.norm(res[i, 6:10])
+        if n > 9:
+            res[i, 10:] = w[9:] + x[10:]
 
     return res
 
@@ -90,10 +92,10 @@ class ESUKF:
 
         X = WtoX(self.x, W)
         Y = np.zeros((n * 2 + 1, self._dim_x + 1))
-        Z = np.zeros((2*n + 1, self._dim_z))
+        Z = np.zeros((2 * n + 1, self._dim_z))
         for i, x in enumerate(X):
             y = self.fx(x, self.dt, u)
-            y[6:10]  # /= np.linalg.norm(y[6:10])
+            # y[6:10]  # /= np.linalg.norm(y[6:10])
             Y[i, :] = y
             a = self.hx(y)
             Z[i, :] = a
@@ -105,6 +107,8 @@ class ESUKF:
         rot_bar = Rotation.from_quat(self.x[6:10], scalar_first=True)
         for i, y in enumerate(Y):
             W_prime[i, :6] = y[:6] - self.x[:6]
+            if self._dim_x > 10:
+                W_prime[i, 9:] = y[10:] - self.x[10:]
             rot = Rotation.from_quat(y[6:10], scalar_first=True)
             W_prime[i, 6:9] = (rot * rot_bar.inv()).as_rotvec()
 
@@ -112,18 +116,15 @@ class ESUKF:
         self.P = np.dot(W_prime.T, np.dot(Wc_diag, W_prime))
         # x_err, self.P = unscented_transform(W_prime, self.points.Wm, self.points.Wc)
 
-
-
         z_pred = np.dot(self.points.Wm, Z)
         y = z - z_pred
-        print(y)
         # innov = np.atleast_2d(Z) - z_pred[np.newaxis, :]
         innov = z_pred[np.newaxis, :] - np.atleast_2d(Z)
         S = np.dot(innov.T, np.dot(Wc_diag, innov)) + self.R
 
         # Cross covariance
         Pxz = np.zeros((self._dim_x, self._dim_z))
-        for i in range(2*n + 1):
+        for i in range(2 * n + 1):
             dz = Z[i] - z_pred
             Pxz += self.points.Wc[i] * np.outer(W_prime[i], dz)
             # Pxz += W_prime[i, :] @ y.T
@@ -132,7 +133,9 @@ class ESUKF:
         K = Pxz @ np.linalg.inv(S)
 
         a = K @ y
-        self.x[:6] += a[:6] 
+        self.x[:6] += a[:6]
+        if self._dim_x > 10:
+            self.x[10:] += a[9:]
 
         rot = Rotation.from_quat(
             self.x[6:10], scalar_first=True) * Rotation.from_rotvec(a[6:9])
@@ -172,6 +175,7 @@ def fx(x, dt, u):
 def hx(x):
     return x[:6]
 
+
 if __name__ == "__main__":
 
     filename = "data/BlueRov2Heavy_mau_11-05-2024_11-10-46.h5"
@@ -184,18 +188,18 @@ if __name__ == "__main__":
     inputs = data["u"]
     t_vec = data["t"]
     model = models.BlueRov2Heavy()
-    points = SigmaPoints(9, alpha=1e-5, beta=2, kappa=0)
-    plotting.plot_state(t_vec, state)
-    plt.show()
+    points = SigmaPoints(9, alpha=1e-5, beta=4.5, kappa=3 - 9)
+    # plotting.plot_state(t_vec, state)
+    # plt.show()
 
     measurements = state.copy()
-    measurements += np.random.normal(0, 0.05, state.shape)
+    # measurements += np.random.normal(0, 0.05, state.shape)
 
-    Q = np.eye(9) * 1e-5
-    R = np.eye(6) * 1e-3
+    Q = np.eye(9) * 1e-9
+    R = np.eye(6) * 1e-5
     P = np.eye(9) * 1e-4
     kf = ESUKF(9, 6, fx=fx, hx=hx, Q=Q,
-               R=Q, points=points)
+               R=R, points=points)
     x0 = np.zeros(10)
     x0[6:10] = attitude.euler_to_quat([0, 0, 0])
     a = Rotation.from_quat(x0[6:10]).as_rotvec()
@@ -211,8 +215,11 @@ if __name__ == "__main__":
         print(i)
         # kf.predict(u)
         kf.ukf_cylce(u, z[:6])
-        x_bar[i, :]= kf.x.copy()
+        x_bar[i, :] = kf.x.copy()
         # x_bar[i, 6:10] = x_bar[i, 6:10] / np.linalg.norm(x_bar[i, 6:10])
 
+    measurements[:, :3] += np.random.normal(0, 0.005, state[:, :3].shape)
+    measurements[:, 3:6] += np.random.normal(0, 2.5e-2, state[:, 3:6].shape)
     plotting.plot_state_est(x_bar[:, :10], state, measurements, t_vec)
+    plotting.plot_ukf_error(x_bar[:, :10], state, t_vec)
     plt.show()

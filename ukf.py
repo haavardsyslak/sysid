@@ -10,7 +10,7 @@ import h5py
 import matplotlib.pyplot as plt
 import plotting
 from tqdm import tqdm
-from utils.data import load_data
+from utils.data import load_data, save_data_ukf_res
 import sys
 from dataclasses import dataclass
 from utils.attitude import quaternion_error, euler_to_quat
@@ -169,7 +169,6 @@ def run_ukf(filename):
         except Exception as e:
             print(e)
 
-    # return UKFResults(state, x_bar, measurements, inputs, P_post, innovation, t_vec)
     plotting.plot_state_est(x_bar[:, :10], state, measurements, t_vec)
     labels = (r"$X_u$", r"$Y_v$", r"$Z_w$", r"$K_p$", r"$M_q$", r"$N_r$")
     plotting.plot_hydro_params(
@@ -193,6 +192,8 @@ def run_ukf(filename):
 
     plotting.plot_input(t_vec, inputs)
     plt.show()
+    return UKFResults(state, x_bar, measurements, inputs, P_post, innovation, S, t_vec)
+    
 
 
 if __name__ == "__main__":
@@ -207,7 +208,7 @@ if __name__ == "__main__":
         filename = args[0]
 
     if filename:
-        run_ukf(filename)
+        res = run_ukf(filename)
         # run_quadratic(filename)
     else:
         print(
@@ -215,3 +216,5 @@ if __name__ == "__main__":
             "Set filename in ukf.py or provide it as an arg:",
             "python3 ukf.py <filepath>",
         )
+
+    save_data_ukf_res(res, filename="state_est")

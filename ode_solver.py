@@ -63,5 +63,7 @@ class OdeSolver:
                     # self.model.Nr = -1
                     updated = True
 
+        if len(res) != len(t_vec):
+            res.append(res[-1])
         res = np.array(res)
         return SimulationResults(res, self.input_array)
